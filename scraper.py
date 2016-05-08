@@ -22,7 +22,15 @@ class CheltuieliSpider(scrapy.Spider):
         for tr in resp.css('.records tr')[1:]:
             hospital = all_text(tr.css('td')[0])
             [href] = tr.css('td')[1].css('a::attr(href)').extract()
-            print hospital, href
+            yield scrapy.Request(
+                resp.urljoin(href),
+                callback=self.form1,
+                meta={'hospital': hospital},
+            )
+
+    def form1(self, resp):
+        print resp.meta['hospital']
+        print resp.body_as_unicode()
 
 process = CrawlerProcess({
     'USER_AGENT': 'Mozilla/4.0 (compatible; MSIE 7.0; Windows NT 5.1)',
