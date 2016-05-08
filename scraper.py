@@ -1,5 +1,6 @@
 from contextlib import contextmanager
 import csv
+import re
 import scrapy
 from scrapy.crawler import CrawlerProcess
 
@@ -27,18 +28,21 @@ def table_rows(table):
 class CheltuieliSpider(scrapy.Spider):
     name = 'cheltuieli'
 
-    def start_requests(self):
-        yield scrapy.FormRequest(
+    def get_page(self, n):
+        return scrapy.FormRequest(
             'http://www.monitorizarecheltuieli.ms.ro/centralizator',
             formdata={
-                'page': '1',
+                'page': str(n),
                 'cautare_text': '',
                 'data_filtrare': '2016-01',
             },
-            callback=self.home,
+            callback=self.results_page,
         )
 
-    def home(self, resp):
+    def start_requests(self):
+        yield self.get_page(1)
+
+    def results_page(self, resp):
         for tr in resp.css('.records tr')[1:]:
             hospital = all_text(tr.css('td')[0])
             [href] = tr.css('td')[1].css('a::attr(href)').extract()
@@ -47,7 +51,17 @@ class CheltuieliSpider(scrapy.Spider):
                 callback=self.form1,
                 meta={'hospital': hospital},
             )
-            return
+
+        onclick = (
+            resp
+            .xpath('//a[contains(text(), "Next")]')
+            .css('::attr(onclick)')
+            .extract_first()
+        )
+        if onclick:
+            m = re.match(r'^populare_form\((\d+)\);$', onclick)
+            next_page = int(m.group(1))
+            yield self.get_page(next_page)
 
     def form1(self, resp):
         COLS = 9
