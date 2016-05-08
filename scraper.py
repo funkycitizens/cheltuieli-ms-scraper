@@ -1,8 +1,28 @@
+from contextlib import contextmanager
+import csv
 import scrapy
 from scrapy.crawler import CrawlerProcess
 
+@contextmanager
+def write_csv(name):
+    with open('out/%s' % name, 'wb') as f:
+        csv_file = csv.writer(f)
+        def writerow(row):
+            csv_file.writerow([c.encode('utf-8') for c in row])
+        yield writerow
+
 def all_text(node):
     return ' '.join(node.css('::text').extract()).strip()
+
+def table_rows(table):
+    for tr in table.css('tr'):
+        row = []
+        for td in tr.css('td'):
+            row.append(all_text(td))
+            colspan = td.css('::attr(colspan)').extract_first()
+            for _ in xrange(int(colspan or 1) - 1):
+                row.append('')
+        yield row
 
 class CheltuieliSpider(scrapy.Spider):
     name = 'cheltuieli'
@@ -27,10 +47,16 @@ class CheltuieliSpider(scrapy.Spider):
                 callback=self.form1,
                 meta={'hospital': hospital},
             )
+            return
 
     def form1(self, resp):
-        print resp.meta['hospital']
-        print resp.body_as_unicode()
+        COLS = 9
+        id = int(resp.url.split('/')[-1])
+        with write_csv('%d.csv' % id) as writerow:
+            writerow([resp.meta['hospital']] + [''] * (COLS - 1))
+            for row in table_rows(resp.css('table table')[0]):
+                assert len(row) == COLS
+                writerow(row)
 
 process = CrawlerProcess({
     'USER_AGENT': 'Mozilla/4.0 (compatible; MSIE 7.0; Windows NT 5.1)',
