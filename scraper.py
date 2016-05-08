@@ -5,12 +5,14 @@ import re
 import scrapy
 from scrapy.crawler import CrawlerProcess
 
+master_list = []
+
 @contextmanager
 def write_csv(filename):
     with open(filename, 'wb') as f:
         csv_file = csv.writer(f)
         def writerow(row):
-            csv_file.writerow([c.encode('utf-8') for c in row])
+            csv_file.writerow([unicode(c).encode('utf-8') for c in row])
         yield writerow
 
 def all_text(node):
@@ -30,6 +32,7 @@ class CheltuieliSpider(scrapy.Spider):
     name = 'cheltuieli'
 
     def get_page(self, n):
+        self.logger.info('getting page %d', n)
         return scrapy.FormRequest(
             'http://www.monitorizarecheltuieli.ms.ro/centralizator',
             formdata={
@@ -46,16 +49,20 @@ class CheltuieliSpider(scrapy.Spider):
     def results_page(self, resp):
         for tr in resp.css('.records tr')[1:]:
             hospital = all_text(tr.css('td')[0])
-            [href] = tr.css('td')[1].css('a::attr(href)').extract()
-            id = int(href.split('/')[-1])
-            if self.skip(id):
-                self.logger.info("skipping %d", id)
-                continue
-            yield scrapy.Request(
-                resp.urljoin(href),
-                callback=self.form1,
-                meta={'hospital': hospital, 'id': id},
-            )
+            href = tr.css('td')[1].css('a::attr(href)').extract_first()
+            if href:
+                id = int(href.split('/')[-1])
+                master_list.append([hospital, id])
+                if self.skip(id):
+                    self.logger.info("skipping %d", id)
+                    continue
+                yield scrapy.Request(
+                    resp.urljoin(href),
+                    callback=self.form1,
+                    meta={'hospital': hospital, 'id': id},
+                )
+            else:
+                master_list.append([hospital, ''])
 
         onclick = (
             resp
@@ -88,3 +95,7 @@ process = CrawlerProcess({
 
 process.crawl(CheltuieliSpider)
 process.start()
+
+with write_csv('out/master.csv') as writerow:
+    for row in master_list:
+        writerow(row)
