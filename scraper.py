@@ -18,6 +18,9 @@ def write_csv(filename):
 def all_text(node):
     return ' '.join(node.css('::text').extract()).strip()
 
+def fold_whitespace(text):
+    return re.sub(r'\s\s+', ' ', text)
+
 def table_rows(table):
     for tr in table.css('tr'):
         row = []
@@ -48,7 +51,7 @@ class CheltuieliSpider(scrapy.Spider):
 
     def results_page(self, resp):
         for tr in resp.css('.records tr')[1:]:
-            hospital = all_text(tr.css('td')[0])
+            hospital = fold_whitespace(all_text(tr.css('td')[0]))
             href = tr.css('td')[1].css('a::attr(href)').extract_first()
             if href:
                 id = int(href.split('/')[-1])
