@@ -1,3 +1,4 @@
+import os.path
 from contextlib import contextmanager
 import csv
 import re
@@ -5,8 +6,8 @@ import scrapy
 from scrapy.crawler import CrawlerProcess
 
 @contextmanager
-def write_csv(name):
-    with open('out/%s' % name, 'wb') as f:
+def write_csv(filename):
+    with open(filename, 'wb') as f:
         csv_file = csv.writer(f)
         def writerow(row):
             csv_file.writerow([c.encode('utf-8') for c in row])
@@ -46,10 +47,14 @@ class CheltuieliSpider(scrapy.Spider):
         for tr in resp.css('.records tr')[1:]:
             hospital = all_text(tr.css('td')[0])
             [href] = tr.css('td')[1].css('a::attr(href)').extract()
+            id = int(href.split('/')[-1])
+            if self.skip(id):
+                self.logger.info("skipping %d", id)
+                continue
             yield scrapy.Request(
                 resp.urljoin(href),
                 callback=self.form1,
-                meta={'hospital': hospital},
+                meta={'hospital': hospital, 'id': id},
             )
 
         onclick = (
@@ -63,10 +68,15 @@ class CheltuieliSpider(scrapy.Spider):
             next_page = int(m.group(1))
             yield self.get_page(next_page)
 
+    def filename(self, id):
+        return 'out/%d.csv' % id
+
+    def skip(self, id):
+        return os.path.isfile(self.filename(id))
+
     def form1(self, resp):
         COLS = 9
-        id = int(resp.url.split('/')[-1])
-        with write_csv('%d.csv' % id) as writerow:
+        with write_csv(self.filename(resp.meta['id'])) as writerow:
             writerow([resp.meta['hospital']] + [''] * (COLS - 1))
             for row in table_rows(resp.css('table table')[0]):
                 assert len(row) == COLS
