@@ -1,3 +1,4 @@
+import sys
 import os.path
 from contextlib import contextmanager
 import csv
@@ -109,5 +110,5 @@ process = CrawlerProcess({
     'USER_AGENT': 'Mozilla/4.0 (compatible; MSIE 7.0; Windows NT 5.1)',
 })
 
-process.crawl(CheltuieliSpider, month='2012-08')
+process.crawl(CheltuieliSpider, month=sys.argv[1])
 process.start()
