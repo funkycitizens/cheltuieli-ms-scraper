@@ -7,6 +7,10 @@ from scrapy.crawler import CrawlerProcess
 
 master_list = []
 
+def ensure_dir(name):
+    if not os.path.isdir(name):
+        os.mkdir(name)
+
 @contextmanager
 def write_csv(filename):
     with open(filename, 'wb') as f:
@@ -34,6 +38,9 @@ def table_rows(table):
 class CheltuieliSpider(scrapy.Spider):
     name = 'cheltuieli'
 
+    def __init__(self, month):
+        self.month = month
+
     def get_page(self, n):
         self.logger.info('getting page %d', n)
         return scrapy.FormRequest(
@@ -41,12 +48,13 @@ class CheltuieliSpider(scrapy.Spider):
             formdata={
                 'page': str(n),
                 'cautare_text': '',
-                'data_filtrare': '2016-01',
+                'data_filtrare': self.month,
             },
             callback=self.results_page,
         )
 
     def start_requests(self):
+        ensure_dir('out/' + self.month)
         yield self.get_page(1)
 
     def results_page(self, resp):
@@ -79,7 +87,7 @@ class CheltuieliSpider(scrapy.Spider):
             yield self.get_page(next_page)
 
     def filename(self, id):
-        return 'out/%d.csv' % id
+        return 'out/%s/%d.csv' % (self.month, id)
 
     def skip(self, id):
         return os.path.isfile(self.filename(id))
@@ -96,7 +104,7 @@ process = CrawlerProcess({
     'USER_AGENT': 'Mozilla/4.0 (compatible; MSIE 7.0; Windows NT 5.1)',
 })
 
-process.crawl(CheltuieliSpider)
+process.crawl(CheltuieliSpider, month='2012-08')
 process.start()
 
 with write_csv('out/master.csv') as writerow:
