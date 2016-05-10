@@ -3,9 +3,7 @@ from contextlib import contextmanager
 import csv
 import re
 import scrapy
-from scrapy.crawler import CrawlerProcess
-
-master_list = []
+from scrapy.crawler import CrawlerProcess, Crawler
 
 def ensure_dir(name):
     if not os.path.isdir(name):
@@ -40,6 +38,7 @@ class CheltuieliSpider(scrapy.Spider):
 
     def __init__(self, month):
         self.month = month
+        self.master_list = []
 
     def get_page(self, n):
         self.logger.info('getting page %d', n)
@@ -63,7 +62,7 @@ class CheltuieliSpider(scrapy.Spider):
             href = tr.css('td')[1].css('a::attr(href)').extract_first()
             if href:
                 id = int(href.split('/')[-1])
-                master_list.append([hospital, id])
+                self.master_list.append([hospital, id])
                 if self.skip(id):
                     self.logger.info("skipping %d", id)
                     continue
@@ -73,7 +72,7 @@ class CheltuieliSpider(scrapy.Spider):
                     meta={'hospital': hospital, 'id': id},
                 )
             else:
-                master_list.append([hospital, ''])
+                self.master_list.append([hospital, ''])
 
         onclick = (
             resp
@@ -100,13 +99,15 @@ class CheltuieliSpider(scrapy.Spider):
                 assert len(row) == COLS
                 writerow(row)
 
+    def closed(self, reason):
+        if reason == 'finished':
+            with write_csv('out/%s/master.csv' % self.month) as writerow:
+                for row in self.master_list:
+                    writerow(row)
+
 process = CrawlerProcess({
     'USER_AGENT': 'Mozilla/4.0 (compatible; MSIE 7.0; Windows NT 5.1)',
 })
 
 process.crawl(CheltuieliSpider, month='2012-08')
 process.start()
-
-with write_csv('out/master.csv') as writerow:
-    for row in master_list:
-        writerow(row)
